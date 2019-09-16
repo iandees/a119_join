@@ -89,3 +89,5 @@ ENV/
 .ropeproject
 /.idea/
 /a119_join.iml
+.DS_Store
+.vscode/

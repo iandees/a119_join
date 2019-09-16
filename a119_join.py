@@ -37,7 +37,7 @@ class VideoFile:
 
 
 def print_group(i, gr):
-    print 'Group %s [%d files]: %s \tTO %s \t(%d min)\t' % (i, len(gr), gr[0].str_date(), gr[-1].str_date(), (gr[-1].date - gr[0].date).total_seconds() / 60, )
+    print 'Group %s [%d files]: %s TO %s (%d min)' % (i, len(gr), gr[0].str_date(), gr[-1].str_date(), (gr[-1].date - gr[0].date).total_seconds() / 60, )
 
 
 # read gps data, filtering the unusable data
@@ -73,7 +73,6 @@ def init_parser():
     parser.add_argument('-d', action="store_true", help='Process all video from this day (select a group)')
     parser.add_argument('-i', type=int, default=600, help='Max interval in seconds for the same group.')
 
-    parser.print_help()
     return parser
 
 
