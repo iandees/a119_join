@@ -143,7 +143,7 @@ def main():
             thumb_format = os.path.join(temp_dir, 'thumb_%d.jpg')
 
             print("Generating frames from %s..." % video_file)
-            subprocess.check_output(['ffmpeg', '-i', video_file, '-vf', 'fps=%d' % args.fps, thumb_format, '-hide_banner'], stderr=subprocess.DEVNULL)
+            subprocess.check_output(['ffmpeg', '-i', video_file, '-qscale:v', '1', '-qmin', '1', '-qmax', '1', '-vf', 'fps=%d' % args.fps, thumb_format, '-hide_banner'], stderr=subprocess.DEVNULL)
 
             current_frame = 1
             prev_gps_point = None
