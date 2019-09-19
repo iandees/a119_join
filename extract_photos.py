@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import ephem
 import haversine
 import json
 import os
@@ -116,6 +117,19 @@ def ignore_frame(ignored_points, point):
 
     return False
 
+def is_light_out(point):
+    sun = ephem.Sun()
+
+    obs = ephem.Observer()
+    obs.lat = '%0.5f' % point.lat
+    obs.lon = '%0.5f' % point.lon
+    obs.date = point.time.strftime('%Y/%m/%d %H:%M')
+
+    sun.compute(obs)
+
+    twilight = -12 * ephem.degree
+    return sun.alt > twilight
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('filenames', nargs='+')
@@ -138,6 +152,19 @@ def main():
     for video_file in args.filenames:
         print("Extracting GPS data from %s..." % video_file)
         gps_data = nvtk_mp42gpx.extract_gpx(video_file, tz=timezone)
+
+        # Find the last GPS point in the file
+        latest_point = None
+        for g in filter(None, gps_data):
+            if latest_point is None or g.time > latest_point.time:
+                latest_point = g
+
+        if latest_point:
+            print("File %s ends at %s" % (video_file, latest_point.time.isoformat()))
+
+            if not is_light_out(latest_point):
+                print("It's likely dark out during this file, so skipping")
+                continue
 
         with tempfile.TemporaryDirectory() as temp_dir:
             thumb_format = os.path.join(temp_dir, 'thumb_%d.jpg')
