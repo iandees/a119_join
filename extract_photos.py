@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import haversine
 import json
 import os
 import piexif
@@ -8,7 +9,6 @@ import subprocess
 import tempfile
 import nvtk_mp42gpx
 from fractions import Fraction
-from haversine import haversine
 
 def coord_to_rational(coord_deg, loc):
     """convert decimal coordinates into degrees, munutes and seconds tuple
@@ -87,15 +87,34 @@ def lerp_point(pt1, pt2, ratio):
     dt = (pt2.time - pt1.time).total_seconds()
     new_time = pt1.time + datetime.timedelta(seconds=(dt * ratio))
 
+    # Special case for bearing because 0° and 359° are very close
+    # From https://stackoverflow.com/a/14498790/73004
+    shortest_angle = ((pt2.bearing - pt1.bearing) + 180) % 360 - 180
+    new_bearing = pt1.bearing + (shortest_angle * ratio) % 360
+
     new_point = nvtk_mp42gpx.GpsPoint(
         time=new_time,
         lat=lerp(pt1.lat, pt2.lat, ratio),
         lon=lerp(pt1.lon, pt2.lon, ratio),
         speed=lerp(pt1.speed, pt2.speed, ratio),
-        bearing=lerp(pt1.bearing, pt2.bearing, ratio),
+        bearing=new_bearing,
     )
 
     return new_point
+
+def ignore_frame(ignored_points, point):
+    if point.speed < 4:
+        return True
+
+    p2 = (point.lat, point.lon)
+
+    for ignored in ignored_points:
+        lat, lon, radius = ignored
+        dist = haversine.haversine((lat, lon), p2, haversine.Unit.METERS)
+        if dist < radius:
+            return True
+
+    return False
 
 def main():
     parser = argparse.ArgumentParser()
@@ -103,10 +122,18 @@ def main():
     parser.add_argument('--output', default='.', help='The output directory where the geotagged photos end up.')
     parser.add_argument('--tz', default='America/Chicago', help='The timezone the camera was set in.')
     parser.add_argument('--fps', type=int, default=1, help='The number of frames per second to extract from the video.')
+    parser.add_argument('--ignore-point', action='append', help='Specify a lat,lon,radius to not output frames for.')
     args = parser.parse_args()
 
     timezone = pytz.timezone(args.tz)
     assert args.fps > 0, "Need to have 1+ fps"
+
+    ignore_points = []
+    for p in args.ignore_point:
+        split_str = p.split(',')
+        assert len(split_str) == 3, "Ignore points should be in the format lat,lon,radius"
+        ignore_point = tuple(map(float, split_str))
+        ignore_points.append(ignore_point)
 
     for video_file in args.filenames:
         print("Extracting GPS data from %s..." % video_file)
@@ -135,18 +162,19 @@ def main():
                     ratio = (interpolation_step / args.fps)
                     interpolated_point = lerp_point(prev_gps_point, gps_point, ratio)
 
-                    set_gps_location(
-                        image_name,
-                        interpolated_point.time,
-                        interpolated_point.lat,
-                        interpolated_point.lon,
-                        0,
-                        interpolated_point.bearing,
-                    )
+                    if not ignore_frame(ignore_points, interpolated_point):
+                        set_gps_location(
+                            image_name,
+                            interpolated_point.time,
+                            interpolated_point.lat,
+                            interpolated_point.lon,
+                            0,
+                            interpolated_point.bearing,
+                        )
 
-                    frame_timestamp = interpolated_point.time.strftime('%Y-%m-%d-%H-%M-%S-%f')
-                    output_filename = 'frame-%s.jpg' % frame_timestamp
-                    os.rename(image_name, os.path.join(args.output, output_filename))
+                        frame_timestamp = interpolated_point.time.strftime('%Y-%m-%d-%H-%M-%S-%f')
+                        output_filename = 'frame-%s.jpg' % frame_timestamp
+                        os.rename(image_name, os.path.join(args.output, output_filename))
 
                     current_frame += 1
 
