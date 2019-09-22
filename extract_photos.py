@@ -90,7 +90,7 @@ def lerp_point(pt1, pt2, ratio):
 
     # Special case for bearing because 0° and 359° are very close
     # From https://stackoverflow.com/a/14498790/73004
-    shortest_angle = ((pt2.bearing - pt1.bearing) + 180) % 360 - 180
+    shortest_angle = ((pt1.bearing - pt2.bearing) + 180) % 360 - 180
     new_bearing = pt1.bearing + (shortest_angle * ratio) % 360
 
     new_point = nvtk_mp42gpx.GpsPoint(
@@ -123,11 +123,11 @@ def is_light_out(point):
     obs = ephem.Observer()
     obs.lat = '%0.5f' % point.lat
     obs.lon = '%0.5f' % point.lon
-    obs.date = point.time.strftime('%Y/%m/%d %H:%M')
+    obs.date = point.time.astimezone(pytz.utc).strftime('%Y/%m/%d %H:%M')
 
     sun.compute(obs)
 
-    twilight = -12 * ephem.degree
+    twilight = -2 * ephem.degree
     return sun.alt > twilight
 
 def main():
@@ -139,7 +139,7 @@ def main():
     parser.add_argument('--ignore-point', action='append', help='Specify a lat,lon,radius to not output frames for.')
     args = parser.parse_args()
 
-    timezone = pytz.timezone(args.tz)
+    tz = pytz.timezone(args.tz)
     assert args.fps > 0, "Need to have 1+ fps"
 
     ignore_points = []
@@ -151,7 +151,7 @@ def main():
 
     for video_file in args.filenames:
         print("Extracting GPS data from %s..." % video_file)
-        gps_data = nvtk_mp42gpx.extract_gpx(video_file, tz=timezone)
+        gps_data = nvtk_mp42gpx.extract_gpx(video_file, tz=tz)
 
         # Find the last GPS point in the file
         latest_point = None
@@ -159,12 +159,13 @@ def main():
             if latest_point is None or g.time > latest_point.time:
                 latest_point = g
 
-        if latest_point:
-            print("File %s ends at %s" % (video_file, latest_point.time.isoformat()))
+        if not latest_point:
+            print("File %s has no GPS data" % (video_file,))
+            continue
 
-            if not is_light_out(latest_point):
-                print("It's likely dark out during this file, so skipping")
-                continue
+        if not is_light_out(latest_point):
+            print("File %s ends when the sun is down, so skipping it" % (video_file,))
+            continue
 
         with tempfile.TemporaryDirectory() as temp_dir:
             thumb_format = os.path.join(temp_dir, 'thumb_%d.jpg')
