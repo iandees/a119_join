@@ -130,6 +130,14 @@ def is_light_out(point):
     twilight = -2 * ephem.degree
     return sun.alt > twilight
 
+def has_movement(points):
+    # Filter out points that don't have GPS signal
+    pts = filter(None, points)
+    # ... and where speed is very low
+    pts = filter(lambda p: p.speed > 0.5, pts)
+
+    return any(pts)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('filenames', nargs='+')
@@ -160,11 +168,15 @@ def main():
                 latest_point = g
 
         if not latest_point:
-            print("File %s has no GPS data" % (video_file,))
+            print("File %s has no GPS data, so skipping it" % (video_file,))
             continue
 
         if not is_light_out(latest_point):
             print("File %s ends when the sun is down, so skipping it" % (video_file,))
+            continue
+
+        if not has_movement(gps_data):
+            print("File %s does not include any movement, so skipping it" % (video_file,))
             continue
 
         with tempfile.TemporaryDirectory() as temp_dir:
