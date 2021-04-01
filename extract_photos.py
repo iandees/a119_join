@@ -151,7 +151,7 @@ def main():
     assert args.fps > 0, "Need to have 1+ fps"
 
     ignore_points = []
-    for p in args.ignore_point:
+    for p in (args.ignore_point or []):
         split_str = p.split(',')
         assert len(split_str) == 3, "Ignore points should be in the format lat,lon,radius"
         ignore_point = tuple(map(float, split_str))
