@@ -161,6 +161,12 @@ def main():
         print("Extracting GPS data from %s..." % video_file)
         gps_data = nvtk_mp42gpx.extract_gpx(video_file, tz=tz)
 
+        # The A129 seems to have at least 2 duplicate points at the start
+        gps_data = list(dict.fromkeys(gps_data))
+
+        # ... it also has one extra data point at the start that doesn't line up with the video
+        gps_data = gps_data[1:]
+
         # Find the last GPS point in the file
         latest_point = None
         for g in filter(None, gps_data):

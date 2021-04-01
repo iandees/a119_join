@@ -76,7 +76,7 @@ def get_gps_atom(gps_atom_info, f, tz):
             return
 
         hour, minute, second, year, month, day, active, latitude_b, longitude_b, unknown2, latitude, longitude, speed, bearing = struct.unpack_from(
-            '<IIIIIIssssffff', data, 48)
+            '<IIIIIIssssffff', data, 16)
 
         try:
             time = fix_time(hour, minute, second, year, month, day, tz)
@@ -136,7 +136,8 @@ def extract_gpx(in_file, header=False, tz=None):
                         gps_offset = 16 + sub_offset  # +16 = skip headers
                         f.seek(gps_offset, 0)
                         while gps_offset < (sub_offset + sub_atom_size):
-                            gps_data.append(get_gps_atom(get_gps_atom_info(f.read(8)), f, tz))
+                            gps_point = get_gps_atom(get_gps_atom_info(f.read(8)), f, tz)
+                            gps_data.append(gps_point)
                             gps_offset += 8
                             f.seek(gps_offset, 0)
 
